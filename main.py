@@ -166,14 +166,29 @@ async def dynamic_client_registration(request: Request):
 # 3. OAuth 2.0 Authorization Endpoint (Browser Approval with PIN)
 # -----------------------------------------------------------------------------
 
-AUTHORIZATION_HTML = """<!DOCTYPE html>
+def _build_authorize_html(
+    subdomain_display: str,
+    client_id_display: str,
+    pkce_status: str,
+    error_html: str,
+    client_id: str,
+    redirect_uri: str,
+    response_type: str,
+    scope: str,
+    state: str,
+    code_challenge: str,
+    code_challenge_method: str,
+    deny_url: str,
+) -> str:
+    """Build the authorization HTML page safely without str.format()."""
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MCP Authorization & Gatekeeper</title>
+    <title>MCP Authorization &amp; Gatekeeper</title>
     <style>
-        :root {
+        :root {{
             --bg: #0f172a;
             --card-bg: #1e293b;
             --accent: #38bdf8;
@@ -182,30 +197,30 @@ AUTHORIZATION_HTML = """<!DOCTYPE html>
             --text: #f8fafc;
             --muted: #94a3b8;
             --border: #334155;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-        body { background-color: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 1.5rem; }
-        .card { background-color: var(--card-bg); border: 1px solid var(--border); border-radius: 1rem; width: 100%; max-width: 460px; padding: 2.2rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.5); }
-        .badge { display: inline-block; padding: 0.35rem 0.85rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(56, 189, 248, 0.15); color: var(--accent); border-radius: 9999px; border: 1px solid rgba(56, 189, 248, 0.3); margin-bottom: 1.2rem; }
-        h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; color: #ffffff; }
-        p.subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.8rem; line-height: 1.5; }
-        .details-box { background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); border-radius: 0.6rem; padding: 1rem; margin-bottom: 1.5rem; font-size: 0.85rem; }
-        .details-row { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
-        .details-row:last-child { margin-bottom: 0; }
-        .details-label { color: var(--muted); }
-        .details-value { color: var(--accent); font-family: monospace; font-weight: 600; word-break: break-all; text-align: right; margin-left: 0.5rem; }
-        .form-group { margin-bottom: 1.5rem; }
-        label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; color: #e2e8f0; }
-        input[type="password"], input[type="text"] { width: 100%; padding: 0.85rem 1rem; background: #0f172a; border: 1px solid var(--border); border-radius: 0.5rem; color: #ffffff; font-size: 1rem; letter-spacing: 0.1em; transition: border-color 0.2s; outline: none; }
-        input[type="password"]:focus, input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(56,189,248,0.2); }
-        .error-msg { background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); color: #fca5a5; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1.2rem; }
-        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
-        button { padding: 0.85rem; border: none; border-radius: 0.5rem; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s, transform 0.1s; }
-        button:hover { opacity: 0.9; }
-        button:active { transform: scale(0.98); }
-        .btn-approve { background-color: var(--success); color: #ffffff; }
-        .btn-deny { background-color: transparent; border: 1px solid var(--border); color: var(--muted); }
-        .btn-deny:hover { background-color: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: var(--danger); }
+        }}
+        * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }}
+        body {{ background-color: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 1.5rem; }}
+        .card {{ background-color: var(--card-bg); border: 1px solid var(--border); border-radius: 1rem; width: 100%; max-width: 460px; padding: 2.2rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.5); }}
+        .badge {{ display: inline-block; padding: 0.35rem 0.85rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(56, 189, 248, 0.15); color: var(--accent); border-radius: 9999px; border: 1px solid rgba(56, 189, 248, 0.3); margin-bottom: 1.2rem; }}
+        h1 {{ font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; color: #ffffff; }}
+        p.subtitle {{ color: var(--muted); font-size: 0.9rem; margin-bottom: 1.8rem; line-height: 1.5; }}
+        .details-box {{ background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); border-radius: 0.6rem; padding: 1rem; margin-bottom: 1.5rem; font-size: 0.85rem; }}
+        .details-row {{ display: flex; justify-content: space-between; margin-bottom: 0.5rem; }}
+        .details-row:last-child {{ margin-bottom: 0; }}
+        .details-label {{ color: var(--muted); }}
+        .details-value {{ color: var(--accent); font-family: monospace; font-weight: 600; word-break: break-all; text-align: right; margin-left: 0.5rem; }}
+        .form-group {{ margin-bottom: 1.5rem; }}
+        label {{ display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; color: #e2e8f0; }}
+        input[type="password"], input[type="text"] {{ width: 100%; padding: 0.85rem 1rem; background: #0f172a; border: 1px solid var(--border); border-radius: 0.5rem; color: #ffffff; font-size: 1rem; letter-spacing: 0.1em; transition: border-color 0.2s; outline: none; }}
+        input[type="password"]:focus, input[type="text"]:focus {{ border-color: var(--accent); box-shadow: 0 0 0 2px rgba(56,189,248,0.2); }}
+        .error-msg {{ background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); color: #fca5a5; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1.2rem; }}
+        .actions {{ display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }}
+        button {{ padding: 0.85rem; border: none; border-radius: 0.5rem; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s, transform 0.1s; }}
+        button:hover {{ opacity: 0.9; }}
+        button:active {{ transform: scale(0.98); }}
+        .btn-approve {{ background-color: var(--success); color: #ffffff; }}
+        .btn-deny {{ background-color: transparent; border: 1px solid var(--border); color: var(--muted); }}
+        .btn-deny:hover {{ background-color: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: var(--danger); }}
     </style>
 </head>
 <body>
@@ -252,8 +267,7 @@ AUTHORIZATION_HTML = """<!DOCTYPE html>
         </form>
     </div>
 </body>
-</html>
-"""
+</html>"""
 
 
 @api_app.get("/authorize", response_class=HTMLResponse)
@@ -271,7 +285,7 @@ async def authorize_get(
     host = request.headers.get("x-forwarded-host", request.headers.get("host", "mcp-server"))
     deny_url = f"{redirect_uri}?error=access_denied&state={state}" if redirect_uri else "#"
 
-    html = AUTHORIZATION_HTML.format(
+    html = _build_authorize_html(
         subdomain_display=host,
         client_id_display=(client_id[:20] + "...") if len(client_id) > 20 else client_id,
         pkce_status="Active (SHA-256)" if code_challenge else "None",
@@ -304,9 +318,9 @@ async def authorize_post(
     if admin_pin.strip() != OAUTH_ADMIN_PIN:
         host = request.headers.get("x-forwarded-host", request.headers.get("host", "mcp-server"))
         deny_url = f"{redirect_uri}?error=access_denied&state={state}" if redirect_uri else "#"
-        error_html = '<div class="error-msg">❌ Invalid Master Admin PIN. Please verify and try again.</div>'
+        error_html = '<div class="error-msg">&#10060; Invalid Master Admin PIN. Please verify and try again.</div>'
 
-        html = AUTHORIZATION_HTML.format(
+        html = _build_authorize_html(
             subdomain_display=host,
             client_id_display=(client_id[:20] + "...") if len(client_id) > 20 else client_id,
             pkce_status="Active (SHA-256)" if code_challenge else "None",
@@ -475,17 +489,17 @@ async def health_check():
 async def root_index(request: Request):
     """Provides human-readable overview of available MCP connectors."""
     origin = _get_origin(request)
-    rows = "".join(
-        f"<li><strong>{name.upper()} MCP</strong> &rarr; <code>{origin.replace('://', f'://{name}.mcp.')}/mcp</code></li>"
-        for name in _connectors
-    )
+    rows = ""
+    for name in _connectors:
+        endpoint_url = origin.replace("://", f"://{name}.mcp.", 1)
+        rows += f"<li><strong>{name.upper()} MCP</strong> &rarr; <code>{endpoint_url}/mcp</code></li>"
     return HTMLResponse(
         content=f"""<!DOCTYPE html>
 <html>
 <head><title>API to MCP Engine</title><style>body{{font-family:sans-serif;max-width:600px;margin:3rem auto;padding:1rem;background:#0f172a;color:#f8fafc;}}code{{background:#1e293b;padding:0.2rem 0.4rem;border-radius:4px;color:#38bdf8;}}ul{{line-height:2;}}a{{color:#38bdf8;}}</style></head>
 <body>
     <h1>API to MCP Engine</h1>
-    <p>Stateless OAuth 2.0 PKCE Gateway & Subdomain FastMCP Router.</p>
+    <p>Stateless OAuth 2.0 PKCE Gateway &amp; Subdomain FastMCP Router.</p>
     <h3>Available MCP Endpoints:</h3>
     <ul>{rows}</ul>
     <p>Health Status: <a href="/health">/health</a></p>
